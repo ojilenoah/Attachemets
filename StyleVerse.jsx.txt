@@ -1,0 +1,1449 @@
+import { useState, useEffect, useRef } from "react";
+
+/* ─── FONT + GLOBAL CSS ─────────────────────────────────────────────── */
+(() => {
+  if (document.getElementById("sv-f")) return;
+  const l = document.createElement("link"); l.id = "sv-f"; l.rel = "stylesheet";
+  l.href = "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Syne:wght@400;500;600;700;800&display=swap";
+  document.head.appendChild(l);
+  const s = document.createElement("style"); s.id = "sv-css";
+  s.textContent = `
+    @keyframes svFade   { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes svSlide  { from{transform:translateY(60px);opacity:0}  to{transform:translateY(0);opacity:1} }
+    @keyframes svHeart  { 0%{transform:scale(1)} 40%{transform:scale(1.65)} 70%{transform:scale(0.85)} 100%{transform:scale(1)} }
+    @keyframes svSpin   { to{transform:rotate(360deg)} }
+    @keyframes svPulse  { 0%,100%{opacity:.7} 50%{opacity:1} }
+    @keyframes svShimmer{ 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+    @keyframes svGlow   { 0%,100%{box-shadow:0 0 8px var(--aura)} 50%{box-shadow:0 0 28px var(--aura)} }
+    @keyframes svBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    ::-webkit-scrollbar{width:3px} ::-webkit-scrollbar-thumb{background:var(--aura,#C9A84C);border-radius:2px}
+    .sv-fade{animation:svFade .4s ease both}
+    .sv-slide{animation:svSlide .4s ease both}
+    .sv-heart{animation:svHeart .35s ease}
+    .sv-pulse{animation:svPulse 2s ease infinite}
+    .sv-glow{animation:svGlow 2.5s ease infinite}
+    .sv-input{width:100%;background:#1E1E1E;border:1.5px solid #2C2C2C;border-radius:12px;color:#F5F5F5;
+      font-family:'Syne',sans-serif;font-size:14px;padding:13px 16px;outline:none;transition:border-color .2s}
+    .sv-input:focus{border-color:var(--aura,#C9A84C)}
+    .sv-input::placeholder{color:#555}
+    textarea.sv-input{resize:none;min-height:90px;line-height:1.5}
+    .sv-btn{cursor:pointer;border:none;outline:none;font-family:'Syne',sans-serif;font-weight:600;transition:all .2s}
+    .sv-btn:active{transform:scale(.94);opacity:.85}
+    .sv-tab{opacity:.4;transition:opacity .2s;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+    .sv-tab.active{opacity:1}
+    .sv-msg-me{align-self:flex-end;background:var(--aura,#C9A84C);color:#000;padding:10px 14px;
+      border-radius:18px 18px 4px 18px;max-width:82%;font-size:13px;font-weight:500;line-height:1.45}
+    .sv-msg-ai{align-self:flex-start;background:#1E1E1E;color:#F5F5F5;padding:10px 14px;
+      border-radius:18px 18px 18px 4px;max-width:85%;font-size:13px;line-height:1.55;border:1px solid #2C2C2C}
+    .sv-dot{width:6px;height:6px;border-radius:50%;background:var(--aura,#C9A84C);animation:svBounce .6s ease infinite}
+    .sv-dot:nth-child(2){animation-delay:.15s} .sv-dot:nth-child(3){animation-delay:.3s}
+    .sv-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:80;display:flex;align-items:flex-end}
+    .sv-sheet{background:#141414;border-radius:24px 24px 0 0;padding:24px;width:100%;max-height:90vh;overflow-y:auto}
+    .sv-explore-card{cursor:pointer;border-radius:14px;overflow:hidden;position:relative;aspect-ratio:3/4;
+      display:flex;align-items:center;justify-content:center;font-size:48px}
+    .sv-notif-dot{width:8px;height:8px;border-radius:50%;background:var(--aura,#C9A84C);flex-shrink:0}
+    .sv-cat-pill{padding:7px 16px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;
+      transition:all .2s;font-family:'Syne',sans-serif;border:none;white-space:nowrap}
+    .sv-streak-fire{animation:svBounce .8s ease infinite}
+  `;
+  document.head.appendChild(s);
+})();
+
+/* ─── CONSTANTS ─────────────────────────────────────────────────────── */
+const AURA = {
+  gold:   {label:"Gold",   hex:"#C9A84C", glow:"rgba(201,168,76,.3)",   e:"👑"},
+  violet: {label:"Violet", hex:"#7B4FD4", glow:"rgba(123,79,212,.3)",   e:"💜"},
+  ember:  {label:"Ember",  hex:"#FF4500", glow:"rgba(255,69,0,.3)",     e:"🔥"},
+  blush:  {label:"Blush",  hex:"#E8A0BF", glow:"rgba(232,160,191,.3)",  e:"🌸"},
+  neon:   {label:"Neon",   hex:"#39FF14", glow:"rgba(57,255,20,.3)",    e:"⚡"},
+  ice:    {label:"Ice",    hex:"#4FC3F7", glow:"rgba(79,195,247,.3)",   e:"🧊"},
+};
+
+const DNA_Q = [
+  { q:"What vibe speaks to you?", opts:[
+    {label:"Clean & Minimal",icon:"⬜",s:"minimal"},{label:"Bold Streetwear",icon:"🔥",s:"streetwear"},
+    {label:"Soft Aesthetic",icon:"🌸",s:"soft"},{label:"Dark & Edgy",icon:"🖤",s:"dark"}]},
+  { q:"Your ideal Saturday fit?", opts:[
+    {label:"Oversized hoodie + cargos",icon:"👕",s:"streetwear"},{label:"Tailored blazer",icon:"🧥",s:"luxury"},
+    {label:"Vintage tee + wide jeans",icon:"👖",s:"vintage"},{label:"Crop top + mini",icon:"👗",s:"casual"}]},
+  { q:"Your color universe?", opts:[
+    {label:"All black everything",icon:"🖤",s:"dark"},{label:"Earth & neutrals",icon:"🤎",s:"vintage"},
+    {label:"Pastels & soft tones",icon:"🌷",s:"soft"},{label:"Neons & bold pops",icon:"💥",s:"streetwear"}]},
+  { q:"Fashion icon energy?", opts:[
+    {label:"A$AP Rocky vibes",icon:"🎤",s:"streetwear"},{label:"Quiet luxury boss",icon:"💎",s:"luxury"},
+    {label:"Artsy creative soul",icon:"🎨",s:"creative"},{label:"Minimalist clean",icon:"🤍",s:"minimal"}]},
+  { q:"Where do you shop?", opts:[
+    {label:"Thrift & vintage",icon:"🛍️",s:"vintage"},{label:"Streetwear brands",icon:"👟",s:"streetwear"},
+    {label:"Luxury & designer",icon:"✨",s:"luxury"},{label:"Mix everything",icon:"🌈",s:"creative"}]},
+];
+
+const LEVELS = [
+  {name:"Rookie",min:0},{name:"Rising",min:10},{name:"Icon",min:50},{name:"Legend",min:200}
+];
+
+const MOCK_USERS = [
+  {id:1,name:"Tolu Adeyemi",  username:"@tolu_drip",    aura:"gold",  level:"Icon",   badge:"Street King",  streak:12, dna:{Streetwear:60,Luxury:25,Vintage:15}, posts:34, followers:1240, following:89},
+  {id:2,name:"Chisom Obi",    username:"@chi_aesthetic", aura:"blush", level:"Rising", badge:"Vintage Soul", streak:5,  dna:{Soft:50,Vintage:30,Minimal:20},     posts:18, followers:340,  following:210},
+  {id:3,name:"Kofi Mensah",   username:"@kofi.drip",    aura:"ember", level:"Legend", badge:"Drip God",     streak:30, dna:{Streetwear:70,Dark:20,Creative:10}, posts:87, followers:4200, following:210},
+  {id:4,name:"Amara Eze",     username:"@amara_lux",    aura:"violet",level:"Icon",   badge:"Quiet Luxury", streak:8,  dna:{Luxury:55,Minimal:30,Creative:15}, posts:41, followers:2100, following:340},
+];
+
+const INIT_POSTS = [
+  {id:1,uid:1,cat:"Streetwear",caption:"All black everything. No explanation needed 🖤",emoji:"🧥",
+   bg:"linear-gradient(160deg,#0A0A0A,#2A2A2A)",likes:847,comments:[
+    {user:"@chi_aesthetic",text:"This is 🔥🔥🔥",aura:"blush"},
+    {user:"@amara_lux",text:"The simplicity is everything",aura:"violet"},
+   ],liked:false,
+   score:{creativity:4.8,drip:4.9,wearability:4.5},
+   tags:["#allblack","#streetwear","#Lagos"],
+   btf:"Born from a late night walk through VI. Sometimes less says everything.",
+   steal:[{item:"Oversized bomber jacket",price:"₦18,000"},{item:"Black cargo pants",price:"₦12,000"}],saved:false},
+  {id:2,uid:3,cat:"Luxury",caption:"When the drip speaks for itself 💎 Quiet luxury is a whole lifestyle.",emoji:"✨",
+   bg:"linear-gradient(160deg,#1A0A00,#3D2B00)",likes:2341,comments:[
+    {user:"@tolu_drip",text:"Bro you're on another level 🔑",aura:"gold"},
+    {user:"@amara_lux",text:"The fit is immaculate",aura:"violet"},
+   ],liked:false,
+   score:{creativity:4.5,drip:4.9,wearability:4.2},
+   tags:["#quietluxury","#drip","#ootd"],
+   btf:"No logos. Just cuts, fabric, and intention. Old money energy is a mindset.",
+   steal:[{item:"Camel overcoat",price:"₦65,000"},{item:"Cashmere turtleneck",price:"₦35,000"}],saved:false},
+  {id:3,uid:2,cat:"Vintage",caption:"Found this gem at the thrift last week 🛍️ She was waiting for me.",emoji:"👗",
+   bg:"linear-gradient(160deg,#120A1A,#2D1A3D)",likes:534,comments:[
+    {user:"@kofi.drip",text:"The vintage pull is unmatched 👏",aura:"ember"},
+   ],liked:false,
+   score:{creativity:4.7,drip:4.3,wearability:4.8},
+   tags:["#vintage","#thrift","#90svibes"],
+   btf:"The 90s never really left. This jacket has lived three lives before mine.",
+   steal:[{item:"Vintage denim jacket",price:"₦8,000"},{item:"High-waist trousers",price:"₦5,500"}],saved:false},
+  {id:4,uid:4,cat:"Creative",caption:"Color blocking is a whole personality 🎨 Not for everyone — very for me.",emoji:"🎨",
+   bg:"linear-gradient(160deg,#050A1A,#0A1A3D)",likes:1100,comments:[
+    {user:"@tolu_drip",text:"This is art fr 🖼️",aura:"gold"},
+    {user:"@chi_aesthetic",text:"The confidence!! 💜",aura:"blush"},
+   ],liked:false,
+   score:{creativity:4.9,drip:4.6,wearability:3.9},
+   tags:["#colorblock","#creative","#artsy"],
+   btf:"Fashion is art. I refuse to follow rules I didn't write myself.",
+   steal:[{item:"Color-block structured blazer",price:"₦28,000"},{item:"Wide leg trousers",price:"₦15,000"}],saved:false},
+];
+
+const CHALLENGES = [
+  {id:1,title:"All Black Fit Challenge",emoji:"🖤",deadline:"48h left",entries:234,
+   desc:"Show us your cleanest all-black outfit. No color allowed. Pure drip only.",
+   prize:"Explore Feature + Legend Badge",cat:"Streetwear",active:true},
+  {id:2,title:"₦10K Drip Challenge",emoji:"💸",deadline:"3 days left",entries:891,
+   desc:"Full outfit under ₦10,000. Budget flex is still a flex. Prove it.",
+   prize:"Rising Star Feature",cat:"Any",active:true},
+  {id:3,title:"Vintage Pull Challenge",emoji:"🛍️",deadline:"5 days left",entries:156,
+   desc:"Thrift or vintage pieces only. Sustainability is the new luxury.",
+   prize:"Vintage Soul Badge",cat:"Vintage",active:true},
+  {id:4,title:"Back To School Drip",emoji:"📚",deadline:"Ended",entries:1240,
+   desc:"The most creative school fit. Winners were crowned.",
+   prize:"Awarded ✓",cat:"Any",active:false},
+];
+
+const MARKET = [
+  {id:1,uid:1,title:"Vintage Levi's Denim Jacket",price:"₦12,000",size:"M",cond:"Good",emoji:"🧥",tag:"Vintage"},
+  {id:2,uid:3,title:"Nike Oversized Crewneck",price:"₦8,500",size:"L",cond:"Like New",emoji:"👕",tag:"Streetwear"},
+  {id:3,uid:2,title:"Y2K Butterfly Mini Dress",price:"₦6,000",size:"S",cond:"Good",emoji:"👗",tag:"Vintage"},
+  {id:4,uid:4,title:"Tailored Blazer — Camel",price:"₦25,000",size:"M",cond:"Like New",emoji:"🧣",tag:"Luxury"},
+  {id:5,uid:1,title:"Cargo Pants — Olive",price:"₦9,500",size:"M",cond:"Good",emoji:"👖",tag:"Streetwear"},
+  {id:6,uid:3,title:"Air Jordan 1s",price:"₦45,000",size:"42",cond:"Good",emoji:"👟",tag:"Streetwear"},
+];
+
+const NOTIFS = [
+  {id:1,text:"@kofi.drip liked your fit",sub:"2 min ago",emoji:"❤️",unread:true},
+  {id:2,text:"@amara_lux started following you",sub:"15 min ago",emoji:"✨",unread:true},
+  {id:3,text:"@chi_aesthetic commented: "this is 🔥🔥"",sub:"1 hour ago",emoji:"💬",unread:true},
+  {id:4,text:"New challenge: All Black Fit — 48h left!",sub:"2 hours ago",emoji:"🏆",unread:false},
+  {id:5,text:"You earned the Street King badge!",sub:"1 day ago",emoji:"👑",unread:false},
+  {id:6,text:"Your fit reached 500 likes!",sub:"2 days ago",emoji:"🎉",unread:false},
+];
+
+const CATEGORIES = ["All","Streetwear","Luxury","Vintage","Casual","Creative","Formal"];
+
+/* ─── TINY HELPERS ──────────────────────────────────────────────────── */
+const getUser = (id) => MOCK_USERS.find(u => u.id === id);
+const fmtNum = (n) => n >= 1000 ? `${(n/1000).toFixed(1)}k` : n;
+const avg3 = (s) => ((s.creativity + s.drip + s.wearability) / 3).toFixed(1);
+
+function AvatarRing({ user, size = 40, pulse = false }) {
+  const aura = AURA[user.aura];
+  return (
+    <div style={{ width:size, height:size, borderRadius:"50%", padding:2,
+      background:`linear-gradient(135deg, ${aura.hex}, ${aura.hex}88)`,
+      boxShadow: pulse ? `0 0 14px ${aura.glow}` : "none",
+      flexShrink:0 }} className={pulse ? "sv-glow" : ""}>
+      <div style={{ width:"100%", height:"100%", borderRadius:"50%",
+        background:"#1A1A1A", display:"flex", alignItems:"center",
+        justifyContent:"center", fontSize: size * 0.42 }}>
+        {user.name.charAt(0)}
+      </div>
+    </div>
+  );
+}
+
+function ScoreBar({ label, value, color }) {
+  return (
+    <div style={{ marginBottom:8 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+        <span style={{ fontSize:11, color:"#888", fontFamily:"Syne" }}>{label}</span>
+        <span style={{ fontSize:11, color, fontWeight:700 }}>{value}/5</span>
+      </div>
+      <div style={{ height:4, background:"#2A2A2A", borderRadius:2 }}>
+        <div style={{ height:"100%", width:`${(value/5)*100}%`, background:color,
+          borderRadius:2, transition:"width .6s ease" }} />
+      </div>
+    </div>
+  );
+}
+
+function LevelBadge({ level }) {
+  const colors = { Rookie:"#888", Rising:"#4FC3F7", Icon:"#C9A84C", Legend:"#FF4500" };
+  return (
+    <span style={{ fontSize:10, fontWeight:700, color: colors[level] || "#888",
+      border:`1px solid ${colors[level] || "#888"}`, borderRadius:20,
+      padding:"2px 8px", fontFamily:"Syne" }}>
+      {level.toUpperCase()}
+    </span>
+  );
+}
+
+/* ─── SPLASH ────────────────────────────────────────────────────────── */
+function SplashScreen({ onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 2400); return () => clearTimeout(t); }, []);
+  return (
+    <div style={{ height:"100%", display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center", background:"#0D0D0D" }}>
+      <div className="sv-glow" style={{ marginBottom:20 }}>
+        <span style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:52,
+          fontWeight:700, color:"var(--aura,#C9A84C)", letterSpacing:4 }}>
+          SV
+        </span>
+      </div>
+      <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:32,
+        fontWeight:700, color:"#F5F5F5", letterSpacing:6, marginBottom:8 }}>
+        STYLEVERSE
+      </h1>
+      <p style={{ color:"#555", fontSize:12, letterSpacing:3, fontFamily:"Syne" }}>SHARE YOUR STYLE</p>
+      <div style={{ position:"absolute", bottom:48, display:"flex", gap:6 }}>
+        {[0,1,2].map(i => (
+          <div key={i} className="sv-pulse" style={{ width:6, height:6, borderRadius:"50%",
+            background:"var(--aura,#C9A84C)", animationDelay:`${i*0.25}s`, opacity:.6 }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── ONBOARDING ────────────────────────────────────────────────────── */
+function OnboardingScreen({ onComplete }) {
+  const [step, setStep] = useState(0); // 0=welcome, 1-5=DNA, 6=aura, 7=name
+  const [dna, setDna] = useState({});
+  const [selectedAura, setAura] = useState("gold");
+  const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+
+  const handleDNAPick = (s) => {
+    setDna(p => ({ ...p, [DNA_Q[step-1].q]: s }));
+    setStep(p => p + 1);
+  };
+
+  const handleFinish = () => {
+    if (!name.trim()) return;
+    const counts = {};
+    Object.values(dna).forEach(v => { counts[v] = (counts[v]||0) + 1; });
+    const sorted = Object.entries(counts).sort((a,b) => b[1]-a[1]);
+    const dnaResult = {};
+    const total = sorted.reduce((s,[,v]) => s+v, 0);
+    sorted.forEach(([k,v]) => { dnaResult[k.charAt(0).toUpperCase()+k.slice(1)] = Math.round((v/total)*100); });
+    onComplete({
+      id:0, name:name.trim(),
+      username: username.trim() ? `@${username.trim().replace("@","")}` : `@${name.trim().toLowerCase().replace(/\s/g,"_")}`,
+      aura:selectedAura, level:"Rookie", badge:"Fresh Drop",
+      streak:1, dna:dnaResult, posts:0, followers:0, following:0
+    });
+  };
+
+  const C = AURA[selectedAura].hex;
+
+  if (step === 0) return (
+    <div className="sv-fade" style={{ height:"100%", display:"flex", flexDirection:"column",
+      alignItems:"center", justifyContent:"center", padding:32, textAlign:"center" }}>
+      <div style={{ fontSize:64, marginBottom:24 }}>👗</div>
+      <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:36, fontWeight:700,
+        color:"#F5F5F5", marginBottom:12 }}>Welcome to<br/>StyleVerse</h1>
+      <p style={{ color:"#888", fontSize:14, lineHeight:1.7, marginBottom:40, maxWidth:280 }}>
+        No judgment. Just style.<br/>A community built for your identity.
+      </p>
+      <button className="sv-btn" onClick={() => setStep(1)}
+        style={{ background:`linear-gradient(135deg,${C},${C}bb)`, color:"#000",
+          padding:"16px 48px", borderRadius:40, fontSize:15, fontWeight:700, letterSpacing:1 }}>
+        GET STARTED
+      </button>
+    </div>
+  );
+
+  if (step >= 1 && step <= 5) {
+    const q = DNA_Q[step-1];
+    return (
+      <div className="sv-fade" style={{ height:"100%", padding:24, display:"flex", flexDirection:"column" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:32 }}>
+          {[1,2,3,4,5].map(i => (
+            <div key={i} style={{ flex:1, height:3, borderRadius:2,
+              background: i <= step ? C : "#2A2A2A", transition:"background .3s" }} />
+          ))}
+        </div>
+        <p style={{ color:"#888", fontSize:12, marginBottom:8, letterSpacing:2 }}>STYLE DNA — {step}/5</p>
+        <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:26, fontWeight:700,
+          color:"#F5F5F5", marginBottom:32, lineHeight:1.3 }}>{q.q}</h2>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, flex:1 }}>
+          {q.opts.map(o => (
+            <button key={o.s} className="sv-btn" onClick={() => handleDNAPick(o.s)}
+              style={{ background:"#1A1A1A", border:"1.5px solid #2C2C2C", borderRadius:16,
+                padding:"20px 12px", display:"flex", flexDirection:"column",
+                alignItems:"center", gap:10, cursor:"pointer" }}>
+              <span style={{ fontSize:32 }}>{o.icon}</span>
+              <span style={{ color:"#F5F5F5", fontSize:12, fontWeight:600, textAlign:"center",
+                lineHeight:1.4 }}>{o.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 6) return (
+    <div className="sv-fade" style={{ height:"100%", padding:24, display:"flex", flexDirection:"column" }}>
+      <p style={{ color:"#888", fontSize:12, marginBottom:8, letterSpacing:2 }}>YOUR AURA COLOR</p>
+      <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:26, fontWeight:700,
+        color:"#F5F5F5", marginBottom:8 }}>Pick your vibe</h2>
+      <p style={{ color:"#666", fontSize:13, marginBottom:32 }}>
+        This color represents your identity on StyleVerse.
+      </p>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:32 }}>
+        {Object.entries(AURA).map(([k,v]) => (
+          <button key={k} className="sv-btn" onClick={() => setAura(k)}
+            style={{ background: selectedAura===k ? `${v.hex}22` : "#1A1A1A",
+              border:`2px solid ${selectedAura===k ? v.hex : "#2C2C2C"}`,
+              borderRadius:14, padding:"16px 8px", display:"flex", flexDirection:"column",
+              alignItems:"center", gap:8,
+              boxShadow: selectedAura===k ? `0 0 16px ${v.glow}` : "none" }}>
+            <span style={{ fontSize:24 }}>{v.e}</span>
+            <span style={{ color: selectedAura===k ? v.hex : "#888",
+              fontSize:12, fontWeight:600 }}>{v.label}</span>
+          </button>
+        ))}
+      </div>
+      <button className="sv-btn" onClick={() => setStep(7)}
+        style={{ background:`linear-gradient(135deg,${AURA[selectedAura].hex},${AURA[selectedAura].hex}bb)`,
+          color:"#000", padding:"16px", borderRadius:14, fontSize:15, fontWeight:700, marginTop:"auto" }}>
+        THIS IS MY AURA ✓
+      </button>
+    </div>
+  );
+
+  if (step === 7) return (
+    <div className="sv-fade" style={{ height:"100%", padding:24, display:"flex", flexDirection:"column" }}>
+      <p style={{ color:"#888", fontSize:12, marginBottom:8, letterSpacing:2 }}>ALMOST THERE</p>
+      <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:26, fontWeight:700,
+        color:"#F5F5F5", marginBottom:32 }}>Set your identity</h2>
+      <div style={{ marginBottom:16 }}>
+        <p style={{ color:"#888", fontSize:12, marginBottom:8, fontFamily:"Syne" }}>Your Name</p>
+        <input className="sv-input" placeholder="e.g. Tolu Adeyemi" value={name}
+          onChange={e => setName(e.target.value)} />
+      </div>
+      <div style={{ marginBottom:40 }}>
+        <p style={{ color:"#888", fontSize:12, marginBottom:8, fontFamily:"Syne" }}>Username</p>
+        <input className="sv-input" placeholder="e.g. tolu_drip" value={username}
+          onChange={e => setUsername(e.target.value)} />
+      </div>
+      <button className="sv-btn" onClick={handleFinish}
+        style={{ background: name.trim()
+          ? `linear-gradient(135deg,${AURA[selectedAura].hex},${AURA[selectedAura].hex}bb)`
+          : "#2A2A2A",
+          color: name.trim() ? "#000" : "#555",
+          padding:"16px", borderRadius:14, fontSize:15, fontWeight:700, marginTop:"auto" }}>
+        ENTER STYLEVERSE →
+      </button>
+    </div>
+  );
+}
+
+/* ─── POST CARD ─────────────────────────────────────────────────────── */
+function PostCard({ post, onLike, onSave, auraHex }) {
+  const user = getUser(post.uid);
+  const [showBTF, setBTF] = useState(false);
+  const [showScore, setScore] = useState(false);
+  const [showSteal, setSteal] = useState(false);
+  const [showComments, setComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [localComments, setLocalComments] = useState(post.comments);
+  const [heartAnim, setHeart] = useState(false);
+
+  const doLike = () => {
+    setHeart(true); onLike(post.id);
+    setTimeout(() => setHeart(false), 400);
+  };
+
+  const addComment = () => {
+    if (!commentText.trim()) return;
+    setLocalComments(p => [...p, { user:"@you", text:commentText, aura:"gold" }]);
+    setCommentText("");
+  };
+
+  return (
+    <div style={{ background:"#141414", borderRadius:20, overflow:"hidden", marginBottom:16 }}>
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center", padding:"12px 16px", gap:10 }}>
+        <AvatarRing user={user} size={38} />
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <span style={{ fontWeight:700, fontSize:13, color:"#F5F5F5" }}>{user.name}</span>
+            <LevelBadge level={user.level} />
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:6, marginTop:2 }}>
+            <span style={{ color:"#555", fontSize:11 }}>{user.username}</span>
+            <span style={{ fontSize:9, color:"#444" }}>•</span>
+            <span style={{ color: auraHex, fontSize:11, fontWeight:600 }}>{post.cat}</span>
+          </div>
+        </div>
+        <span style={{ fontSize:18, cursor:"pointer" }} onClick={() => onSave(post.id)}>
+          {post.saved ? "🔖" : "🏷️"}
+        </span>
+      </div>
+
+      {/* Image */}
+      <div className="sv-post-gradient" style={{ background:post.bg }}>
+        <span style={{ fontSize:80, filter:"drop-shadow(0 4px 16px rgba(0,0,0,.6))" }}>{post.emoji}</span>
+        <div style={{ position:"absolute", bottom:12, right:12 }}>
+          <span style={{ background:"rgba(0,0,0,.6)", borderRadius:8, padding:"4px 10px",
+            fontSize:11, color:"#F5F5F5", fontWeight:600 }}>#{post.cat}</span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ padding:"12px 16px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:16, marginBottom:10 }}>
+          <button className="sv-btn" onClick={doLike} style={{ background:"none",
+            display:"flex", alignItems:"center", gap:5 }}>
+            <span className={heartAnim ? "sv-heart" : ""} style={{ fontSize:22 }}>
+              {post.liked ? "❤️" : "🤍"}
+            </span>
+            <span style={{ color:"#888", fontSize:13, fontWeight:600 }}>{fmtNum(post.likes + (post.liked?1:0))}</span>
+          </button>
+          <button className="sv-btn" onClick={() => setComments(!showComments)}
+            style={{ background:"none", display:"flex", alignItems:"center", gap:5 }}>
+            <span style={{ fontSize:20 }}>💬</span>
+            <span style={{ color:"#888", fontSize:13, fontWeight:600 }}>{localComments.length}</span>
+          </button>
+          <button className="sv-btn" onClick={() => setScore(!showScore)}
+            style={{ background:"none", display:"flex", alignItems:"center", gap:5 }}>
+            <span style={{ fontSize:20 }}>⭐</span>
+            <span style={{ color:"#888", fontSize:13, fontWeight:600 }}>{avg3(post.score)}</span>
+          </button>
+          <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
+            <button className="sv-btn" onClick={() => setBTF(!showBTF)}
+              style={{ background:"#1E1E1E", border:`1px solid ${auraHex}44`,
+                color: auraHex, padding:"5px 10px", borderRadius:8, fontSize:11, fontWeight:600 }}>
+              Story
+            </button>
+            <button className="sv-btn" onClick={() => setSteal(!showSteal)}
+              style={{ background:"#1E1E1E", border:`1px solid #2C2C2C`,
+                color:"#888", padding:"5px 10px", borderRadius:8, fontSize:11, fontWeight:600 }}>
+              🛍️ Steal
+            </button>
+          </div>
+        </div>
+
+        <p style={{ color:"#F5F5F5", fontSize:13, lineHeight:1.5, marginBottom:8 }}>
+          <span style={{ fontWeight:700 }}>{user.name.split(" ")[0]} </span>{post.caption}
+        </p>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+          {post.tags.map(t => (
+            <span key={t} style={{ color: auraHex, fontSize:11, opacity:.8 }}>{t}</span>
+          ))}
+        </div>
+
+        {/* Fit Score */}
+        {showScore && (
+          <div style={{ marginTop:14, background:"#1A1A1A", borderRadius:12, padding:14 }}>
+            <p style={{ color:"#888", fontSize:11, marginBottom:10, fontWeight:600 }}>FIT SCORE</p>
+            <ScoreBar label="Creativity" value={post.score.creativity} color="#7B4FD4" />
+            <ScoreBar label="Drip Level" value={post.score.drip} color={auraHex} />
+            <ScoreBar label="Wearability" value={post.score.wearability} color="#4FC3F7" />
+            <div style={{ textAlign:"right", marginTop:6 }}>
+              <span style={{ color: auraHex, fontSize:20, fontWeight:800 }}>{avg3(post.score)}</span>
+              <span style={{ color:"#555", fontSize:12 }}>/5 avg</span>
+            </div>
+          </div>
+        )}
+
+        {/* Behind The Fit */}
+        {showBTF && (
+          <div style={{ marginTop:14, background:`${auraHex}11`,
+            border:`1px solid ${auraHex}33`, borderRadius:12, padding:14 }}>
+            <p style={{ color: auraHex, fontSize:11, fontWeight:700, marginBottom:6 }}>BEHIND THE FIT</p>
+            <p style={{ color:"#CCC", fontSize:13, lineHeight:1.65, fontStyle:"italic" }}>
+              "{post.btf}"
+            </p>
+          </div>
+        )}
+
+        {/* Steal This Fit */}
+        {showSteal && (
+          <div style={{ marginTop:14, background:"#1A1A1A", borderRadius:12, padding:14 }}>
+            <p style={{ color:"#888", fontSize:11, fontWeight:600, marginBottom:10 }}>🛍️ STEAL THIS FIT</p>
+            {post.steal.map((s,i) => (
+              <div key={i} style={{ display:"flex", justifyContent:"space-between",
+                alignItems:"center", padding:"8px 0",
+                borderBottom: i < post.steal.length-1 ? "1px solid #2A2A2A" : "none" }}>
+                <span style={{ color:"#F5F5F5", fontSize:13 }}>{s.item}</span>
+                <span style={{ color: auraHex, fontSize:13, fontWeight:700 }}>{s.price}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Comments */}
+        {showComments && (
+          <div style={{ marginTop:14 }}>
+            {localComments.map((c,i) => (
+              <div key={i} style={{ display:"flex", gap:8, marginBottom:10, alignItems:"flex-start" }}>
+                <div style={{ width:28, height:28, borderRadius:"50%",
+                  background:`${AURA[c.aura]?.hex || "#C9A84C"}33`,
+                  border:`1.5px solid ${AURA[c.aura]?.hex || "#C9A84C"}`,
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  fontSize:11, fontWeight:700, flexShrink:0, color: AURA[c.aura]?.hex || "#C9A84C" }}>
+                  {c.user.charAt(1).toUpperCase()}
+                </div>
+                <div style={{ background:"#1E1E1E", borderRadius:"14px 14px 14px 4px",
+                  padding:"8px 12px", flex:1 }}>
+                  <span style={{ color: AURA[c.aura]?.hex || "#C9A84C", fontSize:11, fontWeight:700 }}>
+                    {c.user}
+                  </span>
+                  <p style={{ color:"#DDD", fontSize:12, marginTop:2 }}>{c.text}</p>
+                </div>
+              </div>
+            ))}
+            <div style={{ display:"flex", gap:8, marginTop:8 }}>
+              <input className="sv-input" style={{ fontSize:12, padding:"10px 14px" }}
+                placeholder="Add a comment..." value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && addComment()} />
+              <button className="sv-btn" onClick={addComment}
+                style={{ background: auraHex, color:"#000", padding:"10px 14px",
+                  borderRadius:12, fontWeight:700, fontSize:13, flexShrink:0 }}>
+                →
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── HOME SCREEN ───────────────────────────────────────────────────── */
+function HomeScreen({ posts, onLike, onSave, auraHex, user }) {
+  return (
+    <div style={{ height:"100%", overflowY:"auto", paddingBottom:80 }}>
+      {/* Header */}
+      <div style={{ padding:"16px 20px", display:"flex", alignItems:"center",
+        justifyContent:"space-between", position:"sticky", top:0,
+        background:"rgba(13,13,13,.95)", backdropFilter:"blur(10px)", zIndex:10 }}>
+        <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:26, fontWeight:700,
+          color:"#F5F5F5", letterSpacing:2 }}>
+          STYLE<span style={{ color: auraHex }}>VERSE</span>
+        </h1>
+        <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+          <span style={{ fontSize:20, cursor:"pointer" }}>🔍</span>
+          <div style={{ position:"relative" }}>
+            <span style={{ fontSize:20, cursor:"pointer" }}>🔔</span>
+            <div style={{ position:"absolute", top:0, right:0, width:7, height:7,
+              borderRadius:"50%", background: auraHex }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Stories row */}
+      <div style={{ padding:"0 0 16px", overflowX:"auto", display:"flex", gap:12,
+        paddingLeft:20, paddingRight:20 }}>
+        {MOCK_USERS.map(u => (
+          <div key={u.id} style={{ display:"flex", flexDirection:"column",
+            alignItems:"center", gap:6, flexShrink:0 }}>
+            <div style={{ padding:2, borderRadius:"50%",
+              background:`linear-gradient(135deg,${AURA[u.aura].hex},${AURA[u.aura].hex}66)` }}>
+              <div style={{ width:52, height:52, borderRadius:"50%", background:"#1A1A1A",
+                border:"2px solid #0D0D0D", display:"flex", alignItems:"center",
+                justifyContent:"center", fontSize:20 }}>
+                {u.name.charAt(0)}
+              </div>
+            </div>
+            <span style={{ color:"#888", fontSize:10, fontWeight:500 }}>
+              {u.name.split(" ")[0]}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ padding:"0 16px" }}>
+        {posts.map(p => (
+          <PostCard key={p.id} post={p} onLike={onLike} onSave={onSave} auraHex={auraHex} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── EXPLORE SCREEN ────────────────────────────────────────────────── */
+function ExploreScreen({ posts, auraHex, onLike }) {
+  const [cat, setCat] = useState("All");
+  const [search, setSearch] = useState("");
+  const filtered = posts.filter(p =>
+    (cat === "All" || p.cat === cat) &&
+    (search === "" || p.caption.toLowerCase().includes(search.toLowerCase()) ||
+     getUser(p.uid).name.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  return (
+    <div style={{ height:"100%", overflowY:"auto", paddingBottom:80 }}>
+      <div style={{ padding:"16px 20px", position:"sticky", top:0,
+        background:"rgba(13,13,13,.95)", backdropFilter:"blur(10px)", zIndex:10 }}>
+        <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:700,
+          color:"#F5F5F5", marginBottom:12 }}>Explore</h2>
+        <input className="sv-input" placeholder="🔍  Search styles, people..."
+          value={search} onChange={e => setSearch(e.target.value)}
+          style={{ marginBottom:12 }} />
+        <div style={{ display:"flex", gap:8, overflowX:"auto", paddingBottom:4 }}>
+          {CATEGORIES.map(c => (
+            <button key={c} className="sv-cat-pill" onClick={() => setCat(c)}
+              style={{ background: cat===c ? auraHex : "#1E1E1E",
+                color: cat===c ? "#000" : "#888",
+                border: `1px solid ${cat===c ? auraHex : "#2C2C2C"}` }}>
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding:"12px 16px" }}>
+        {/* Featured */}
+        {cat === "All" && search === "" && (
+          <div style={{ marginBottom:20 }}>
+            <p style={{ color:"#888", fontSize:11, fontWeight:600, marginBottom:10,
+              letterSpacing:2 }}>🔥 TRENDING NOW</p>
+            <div style={{ background:`${auraHex}11`, border:`1px solid ${auraHex}33`,
+              borderRadius:16, padding:16, marginBottom:12 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                <span style={{ fontSize:32 }}>🏆</span>
+                <div>
+                  <p style={{ color: auraHex, fontSize:12, fontWeight:700 }}>ALL BLACK CHALLENGE</p>
+                  <p style={{ color:"#888", fontSize:11, marginTop:2 }}>234 entries · 48h left to join</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Grid */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {filtered.map(p => {
+            const u = getUser(p.uid);
+            return (
+              <div key={p.id} className="sv-explore-card" style={{ background:p.bg }}>
+                <span style={{ fontSize:48 }}>{p.emoji}</span>
+                <div style={{ position:"absolute", bottom:0, left:0, right:0,
+                  padding:"8px 10px", background:"linear-gradient(transparent,rgba(0,0,0,.8))" }}>
+                  <p style={{ color:"#F5F5F5", fontSize:11, fontWeight:600 }}>{u.name.split(" ")[0]}</p>
+                  <div style={{ display:"flex", alignItems:"center", gap:4 }}>
+                    <span style={{ color: AURA[u.aura].hex, fontSize:10 }}>●</span>
+                    <span style={{ color:"#888", fontSize:10 }}>{p.cat}</span>
+                  </div>
+                </div>
+                <div style={{ position:"absolute", top:8, right:8 }}>
+                  <span style={{ fontSize:11, background:"rgba(0,0,0,.7)", padding:"3px 7px",
+                    borderRadius:8, color:"#F5F5F5" }}>❤️ {fmtNum(p.likes + (p.liked?1:0))}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {filtered.length === 0 && (
+          <div style={{ textAlign:"center", padding:40, color:"#555" }}>
+            <span style={{ fontSize:32 }}>🔍</span>
+            <p style={{ fontSize:13, marginTop:8 }}>No styles found</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── CREATE POST ───────────────────────────────────────────────────── */
+function CreatePostScreen({ auraHex, onPost, onClose }) {
+  const [step, setStep] = useState(1);
+  const [cat, setCat] = useState("");
+  const [caption, setCaption] = useState("");
+  const [tags, setTags] = useState("");
+  const [btf, setBtf] = useState("");
+  const [selectedEmoji, setEmoji] = useState("🧥");
+  const EMOJIS = ["🧥","👕","👖","👗","👟","👔","🧣","👜","💎","✨","🎨","🔥"];
+  const GRADS = [
+    "linear-gradient(160deg,#0A0A0A,#2A2A2A)",
+    "linear-gradient(160deg,#1A0A00,#3D2B00)",
+    "linear-gradient(160deg,#120A1A,#2D1A3D)",
+    "linear-gradient(160deg,#050A1A,#0A1A3D)",
+    "linear-gradient(160deg,#0A1A0A,#1A3D1A)",
+    "linear-gradient(160deg,#1A0A0A,#3D1A1A)",
+  ];
+  const [selGrad, setGrad] = useState(GRADS[0]);
+
+  const handlePost = () => {
+    if (!caption.trim() || !cat) return;
+    onPost({
+      id: Date.now(), uid:0, cat, caption, emoji:selectedEmoji, bg:selGrad,
+      likes:0, comments:[], liked:false,
+      score:{creativity:0,drip:0,wearability:0},
+      tags: tags.split(" ").filter(Boolean).map(t => t.startsWith("#") ? t : `#${t}`),
+      btf: btf || "Just felt cute 🤍",
+      steal:[], saved:false
+    });
+    onClose();
+  };
+
+  return (
+    <div style={{ height:"100%", overflowY:"auto", paddingBottom:80 }}>
+      <div style={{ padding:"16px 20px", display:"flex", alignItems:"center", gap:12,
+        position:"sticky", top:0, background:"rgba(13,13,13,.95)",
+        backdropFilter:"blur(10px)", zIndex:10 }}>
+        <button className="sv-btn" onClick={onClose}
+          style={{ background:"#1E1E1E", color:"#F5F5F5", padding:"8px 14px",
+            borderRadius:10, fontSize:13, border:"1px solid #2C2C2C" }}>← Back</button>
+        <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:700, flex:1 }}>
+          New Post
+        </h2>
+        <button className="sv-btn" onClick={handlePost}
+          style={{ background: (caption.trim() && cat) ? auraHex : "#2A2A2A",
+            color: (caption.trim() && cat) ? "#000" : "#555",
+            padding:"8px 20px", borderRadius:10, fontSize:13, fontWeight:700 }}>
+          POST
+        </button>
+      </div>
+
+      <div style={{ padding:"0 20px" }}>
+        {/* Preview */}
+        <div style={{ background:selGrad, borderRadius:16, height:200,
+          display:"flex", alignItems:"center", justifyContent:"center",
+          fontSize:80, marginBottom:20 }}>
+          {selectedEmoji}
+        </div>
+
+        {/* Emoji picker */}
+        <p style={{ color:"#888", fontSize:11, marginBottom:8, fontWeight:600 }}>OUTFIT EMOJI</p>
+        <div style={{ display:"flex", gap:8, overflowX:"auto", marginBottom:20, paddingBottom:4 }}>
+          {EMOJIS.map(e => (
+            <button key={e} className="sv-btn" onClick={() => setEmoji(e)}
+              style={{ background: selectedEmoji===e ? `${auraHex}22` : "#1A1A1A",
+                border:`1.5px solid ${selectedEmoji===e ? auraHex : "#2C2C2C"}`,
+                borderRadius:10, padding:"8px 10px", fontSize:20, flexShrink:0 }}>
+              {e}
+            </button>
+          ))}
+        </div>
+
+        {/* Background */}
+        <p style={{ color:"#888", fontSize:11, marginBottom:8, fontWeight:600 }}>VIBE BACKGROUND</p>
+        <div style={{ display:"flex", gap:8, marginBottom:20 }}>
+          {GRADS.map(g => (
+            <div key={g} onClick={() => setGrad(g)}
+              style={{ width:40, height:40, borderRadius:8, background:g, cursor:"pointer",
+                flexShrink:0, border:`2px solid ${selGrad===g ? auraHex : "transparent"}` }} />
+          ))}
+        </div>
+
+        {/* Category */}
+        <p style={{ color:"#888", fontSize:11, marginBottom:8, fontWeight:600 }}>CATEGORY *</p>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:20 }}>
+          {CATEGORIES.filter(c => c !== "All").map(c => (
+            <button key={c} className="sv-cat-pill" onClick={() => setCat(c)}
+              style={{ background: cat===c ? auraHex : "#1E1E1E",
+                color: cat===c ? "#000" : "#888",
+                border:`1px solid ${cat===c ? auraHex : "#2C2C2C"}` }}>
+              {c}
+            </button>
+          ))}
+        </div>
+
+        {/* Caption */}
+        <p style={{ color:"#888", fontSize:11, marginBottom:8, fontWeight:600 }}>CAPTION *</p>
+        <textarea className="sv-input" placeholder="Describe the fit, the vibe, the energy..."
+          value={caption} onChange={e => setCaption(e.target.value)}
+          style={{ marginBottom:20 }} />
+
+        {/* Tags */}
+        <p style={{ color:"#888", fontSize:11, marginBottom:8, fontWeight:600 }}>TAGS</p>
+        <input className="sv-input" placeholder="#streetwear #ootd #lagos"
+          value={tags} onChange={e => setTags(e.target.value)}
+          style={{ marginBottom:20 }} />
+
+        {/* Behind the Fit */}
+        <p style={{ color: auraHex, fontSize:11, marginBottom:8, fontWeight:600 }}>
+          BEHIND THE FIT (optional)
+        </p>
+        <textarea className="sv-input" placeholder="Tell us the story behind this outfit..."
+          value={btf} onChange={e => setBtf(e.target.value)}
+          style={{ marginBottom:24 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ─── CHALLENGES SCREEN ─────────────────────────────────────────────── */
+function ChallengesScreen({ auraHex }) {
+  const [joined, setJoined] = useState([]);
+  return (
+    <div style={{ height:"100%", overflowY:"auto", paddingBottom:80 }}>
+      <div style={{ padding:"16px 20px 0" }}>
+        <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:26, fontWeight:700,
+          color:"#F5F5F5", marginBottom:4 }}>Challenges</h2>
+        <p style={{ color:"#666", fontSize:13, marginBottom:20 }}>Compete. Get seen. Win.</p>
+      </div>
+
+      {/* Active banner */}
+      <div style={{ margin:"0 16px 20px",
+        background:`linear-gradient(135deg,${auraHex}22,${auraHex}11)`,
+        border:`1px solid ${auraHex}44`, borderRadius:16, padding:16 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <div>
+            <p style={{ color: auraHex, fontSize:11, fontWeight:700, marginBottom:4 }}>THIS WEEK</p>
+            <p style={{ color:"#F5F5F5", fontSize:15, fontWeight:700 }}>🏆 2 Active Challenges</p>
+            <p style={{ color:"#888", fontSize:12, marginTop:2 }}>1,125 entries total</p>
+          </div>
+          <span style={{ fontSize:40 }}>🏆</span>
+        </div>
+      </div>
+
+      <div style={{ padding:"0 16px" }}>
+        {CHALLENGES.map(ch => (
+          <div key={ch.id} style={{ background:"#141414", borderRadius:18,
+            overflow:"hidden", marginBottom:14,
+            opacity: ch.active ? 1 : 0.55 }}>
+            <div style={{ padding:16 }}>
+              <div style={{ display:"flex", justifyContent:"space-between",
+                alignItems:"flex-start", marginBottom:10 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontSize:32 }}>{ch.emoji}</span>
+                  <div>
+                    <p style={{ color:"#F5F5F5", fontSize:14, fontWeight:700 }}>{ch.title}</p>
+                    <div style={{ display:"flex", gap:8, marginTop:3 }}>
+                      <span style={{ color: ch.active ? "#4FC3F7" : "#555",
+                        fontSize:11, fontWeight:600 }}>{ch.deadline}</span>
+                      <span style={{ color:"#444", fontSize:11 }}>·</span>
+                      <span style={{ color:"#888", fontSize:11 }}>{fmtNum(ch.entries)} entries</span>
+                    </div>
+                  </div>
+                </div>
+                <span style={{ background:`${auraHex}22`, color: auraHex,
+                  fontSize:10, fontWeight:700, padding:"3px 8px", borderRadius:8 }}>
+                  {ch.cat}
+                </span>
+              </div>
+
+              <p style={{ color:"#888", fontSize:12, lineHeight:1.55, marginBottom:12 }}>{ch.desc}</p>
+
+              <div style={{ display:"flex", alignItems:"center",
+                justifyContent:"space-between" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ fontSize:14 }}>🏅</span>
+                  <span style={{ color:"#C9A84C", fontSize:11, fontWeight:600 }}>{ch.prize}</span>
+                </div>
+                {ch.active ? (
+                  <button className="sv-btn" onClick={() => setJoined(p =>
+                    p.includes(ch.id) ? p.filter(x => x !== ch.id) : [...p, ch.id])}
+                    style={{ background: joined.includes(ch.id) ? `${auraHex}22` : auraHex,
+                      color: joined.includes(ch.id) ? auraHex : "#000",
+                      border: joined.includes(ch.id) ? `1px solid ${auraHex}` : "none",
+                      padding:"8px 18px", borderRadius:10, fontSize:12, fontWeight:700 }}>
+                    {joined.includes(ch.id) ? "✓ Joined" : "Join Now"}
+                  </button>
+                ) : (
+                  <span style={{ color:"#555", fontSize:12 }}>Ended</span>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── PROFILE SCREEN ────────────────────────────────────────────────── */
+function ProfileScreen({ user, posts, auraHex, onOpenAI, onOpenMarket }) {
+  const [tab, setTab] = useState("posts");
+  const aura = AURA[user.aura];
+  const myPosts = posts.filter(p => p.uid === user.id);
+  const saved = posts.filter(p => p.saved);
+  const levelInfo = LEVELS.slice().reverse().find(l => myPosts.length >= l.min) || LEVELS[0];
+  const nextLevel = LEVELS[LEVELS.findIndex(l => l.name === levelInfo.name) + 1];
+  const BADGES = [
+    { emoji:"⚡", label:"Fresh Drop", color:"#4FC3F7" },
+    { emoji:user.streak >= 7 ? "🔥" : "🕯️", label:`${user.streak} Day Streak`, color: auraHex },
+    { emoji:"🏅", label:user.badge, color:"#C9A84C" },
+  ];
+
+  return (
+    <div style={{ height:"100%", overflowY:"auto", paddingBottom:80 }}>
+      {/* Cover + Avatar */}
+      <div style={{ height:120, background:`linear-gradient(135deg,${aura.hex}33,${aura.hex}11)`,
+        position:"relative", marginBottom:50 }}>
+        <div style={{ position:"absolute", bottom:-40, left:20, padding:3, borderRadius:"50%",
+          background:`linear-gradient(135deg,${aura.hex},${aura.hex}88)`,
+          boxShadow:`0 0 24px ${aura.glow}` }}>
+          <div style={{ width:76, height:76, borderRadius:"50%", background:"#141414",
+            display:"flex", alignItems:"center", justifyContent:"center",
+            fontSize:30, fontFamily:"'Cormorant Garamond',serif", fontWeight:700,
+            color: aura.hex }}>
+            {user.name.charAt(0)}
+          </div>
+        </div>
+        <div style={{ position:"absolute", bottom:-16, right:16 }}>
+          <LevelBadge level={levelInfo.name} />
+        </div>
+      </div>
+
+      <div style={{ padding:"0 20px" }}>
+        {/* Info */}
+        <h2 style={{ fontSize:20, fontWeight:800, color:"#F5F5F5", marginBottom:2 }}>{user.name}</h2>
+        <p style={{ color: aura.hex, fontSize:13, fontWeight:600, marginBottom:12 }}>{user.username}</p>
+
+        {/* Stats */}
+        <div style={{ display:"flex", gap:0, marginBottom:16,
+          background:"#141414", borderRadius:14 }}>
+          {[
+            { label:"Posts", val: myPosts.length },
+            { label:"Followers", val: fmtNum(user.followers) },
+            { label:"Following", val: fmtNum(user.following) },
+          ].map((s,i) => (
+            <div key={s.label} style={{ flex:1, padding:"14px 0", textAlign:"center",
+              borderRight: i < 2 ? "1px solid #2A2A2A" : "none" }}>
+              <p style={{ color:"#F5F5F5", fontSize:18, fontWeight:800 }}>{s.val}</p>
+              <p style={{ color:"#555", fontSize:11 }}>{s.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Streak */}
+        <div style={{ background:"#141414", borderRadius:14, padding:14, marginBottom:12,
+          display:"flex", alignItems:"center", gap:12 }}>
+          <span className="sv-streak-fire" style={{ fontSize:28 }}>🔥</span>
+          <div style={{ flex:1 }}>
+            <p style={{ color:"#F5F5F5", fontSize:13, fontWeight:700 }}>
+              {user.streak} Day Streak
+            </p>
+            <p style={{ color:"#666", fontSize:11, marginTop:2 }}>
+              Keep posting to maintain your streak
+            </p>
+          </div>
+          <div style={{ background:`${auraHex}22`, borderRadius:10, padding:"6px 12px" }}>
+            <span style={{ color: auraHex, fontSize:12, fontWeight:700 }}>
+              {user.streak >= 30 ? "🏆 30+" : user.streak >= 7 ? "🥈 7+" : "🥉 Keep it up"}
+            </span>
+          </div>
+        </div>
+
+        {/* Level progress */}
+        {nextLevel && (
+          <div style={{ background:"#141414", borderRadius:14, padding:14, marginBottom:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
+              <span style={{ color:"#888", fontSize:11, fontWeight:600 }}>LEVEL PROGRESS</span>
+              <span style={{ color: auraHex, fontSize:11, fontWeight:700 }}>
+                {levelInfo.name} → {nextLevel.name}
+              </span>
+            </div>
+            <div style={{ height:6, background:"#2A2A2A", borderRadius:3 }}>
+              <div style={{ height:"100%", borderRadius:3, background: auraHex,
+                width:`${Math.min(100, ((myPosts.length - levelInfo.min) / (nextLevel.min - levelInfo.min)) * 100)}%`,
+                transition:"width .8s ease" }} />
+            </div>
+            <p style={{ color:"#555", fontSize:11, marginTop:6 }}>
+              {nextLevel.min - myPosts.length} more posts to reach {nextLevel.name}
+            </p>
+          </div>
+        )}
+
+        {/* Style DNA */}
+        <div style={{ background:"#141414", borderRadius:14, padding:14, marginBottom:12 }}>
+          <p style={{ color:"#888", fontSize:11, fontWeight:600, marginBottom:12 }}>STYLE DNA</p>
+          {Object.entries(user.dna).map(([k,v]) => (
+            <div key={k} style={{ marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                <span style={{ color:"#CCC", fontSize:12 }}>{k}</span>
+                <span style={{ color: auraHex, fontSize:12, fontWeight:700 }}>{v}%</span>
+              </div>
+              <div style={{ height:4, background:"#2A2A2A", borderRadius:2 }}>
+                <div style={{ height:"100%", width:`${v}%`, background: auraHex,
+                  borderRadius:2, transition:"width .6s ease" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Badges */}
+        <div style={{ background:"#141414", borderRadius:14, padding:14, marginBottom:16 }}>
+          <p style={{ color:"#888", fontSize:11, fontWeight:600, marginBottom:12 }}>BADGES</p>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {BADGES.map((b,i) => (
+              <div key={i} style={{ background:`${b.color}15`,
+                border:`1px solid ${b.color}44`, borderRadius:12,
+                padding:"8px 12px", display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:16 }}>{b.emoji}</span>
+                <span style={{ color:b.color, fontSize:11, fontWeight:700 }}>{b.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick actions */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
+          <button className="sv-btn" onClick={onOpenAI}
+            style={{ background:`${auraHex}11`, border:`1px solid ${auraHex}33`,
+              borderRadius:14, padding:14, textAlign:"left" }}>
+            <span style={{ fontSize:24, display:"block", marginBottom:6 }}>🤖</span>
+            <span style={{ color:"#F5F5F5", fontSize:12, fontWeight:700, display:"block" }}>
+              AI Stylist
+            </span>
+            <span style={{ color:"#666", fontSize:11 }}>Get style advice</span>
+          </button>
+          <button className="sv-btn" onClick={onOpenMarket}
+            style={{ background:"#141414", border:"1px solid #2C2C2C",
+              borderRadius:14, padding:14, textAlign:"left" }}>
+            <span style={{ fontSize:24, display:"block", marginBottom:6 }}>🛍️</span>
+            <span style={{ color:"#F5F5F5", fontSize:12, fontWeight:700, display:"block" }}>
+              Marketplace
+            </span>
+            <span style={{ color:"#666", fontSize:11 }}>Buy & sell fashion</span>
+          </button>
+        </div>
+
+        {/* Posts/Saved tabs */}
+        <div style={{ display:"flex", gap:0, borderBottom:"1px solid #2A2A2A", marginBottom:16 }}>
+          {["posts","saved"].map(t => (
+            <button key={t} className="sv-btn" onClick={() => setTab(t)}
+              style={{ flex:1, padding:"12px 0", background:"none",
+                color: tab===t ? auraHex : "#555", fontSize:13, fontWeight:700,
+                borderBottom: tab===t ? `2px solid ${auraHex}` : "2px solid transparent",
+                textTransform:"capitalize", letterSpacing:1 }}>
+              {t === "posts" ? `📸 Posts` : `🔖 Saved`}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, paddingBottom:20 }}>
+          {(tab === "posts" ? myPosts : saved).map(p => (
+            <div key={p.id} style={{ background:p.bg, borderRadius:12, aspectRatio:"3/4",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontSize:44, position:"relative", overflow:"hidden" }}>
+              {p.emoji}
+              <div style={{ position:"absolute", bottom:0, left:0, right:0, padding:"6px 8px",
+                background:"linear-gradient(transparent,rgba(0,0,0,.8))" }}>
+                <span style={{ color:"#888", fontSize:10 }}>❤️ {fmtNum(p.likes)}</span>
+              </div>
+            </div>
+          ))}
+          {(tab === "posts" ? myPosts : saved).length === 0 && (
+            <div style={{ gridColumn:"1/-1", textAlign:"center", padding:32, color:"#555" }}>
+              <span style={{ fontSize:28 }}>{tab === "posts" ? "📸" : "🔖"}</span>
+              <p style={{ fontSize:13, marginTop:8 }}>
+                {tab === "posts" ? "No posts yet. Share your first fit!" : "No saved posts yet."}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── AI STYLIST ────────────────────────────────────────────────────── */
+function AIScreen({ auraHex, onClose }) {
+  const [msgs, setMsgs] = useState([
+    { role:"ai", text:"Hey! I'm your StyleVerse AI Stylist 👗✨ Ask me anything — rate your fit, suggest outfits, budget drip ideas, or just talk style." }
+  ]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior:"smooth" });
+  }, [msgs]);
+
+  const send = async () => {
+    const txt = input.trim(); if (!txt || loading) return;
+    setInput("");
+    setMsgs(p => [...p, { role:"user", text:txt }]);
+    setLoading(true);
+    try {
+      const history = msgs
+        .filter(m => m.role !== "ai" || msgs.indexOf(m) > 0)
+        .map(m => ({ role: m.role === "ai" ? "assistant" : "user", content: m.text }));
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          model:"claude-sonnet-4-20250514",
+          max_tokens:600,
+          system:`You are the StyleVerse AI Stylist — a cool, knowledgeable fashion assistant embedded in a premium fashion app. 
+You help users with: rating outfits, suggesting combinations, budget outfit ideas (use Nigerian Naira ₦ when mentioning prices), style advice, and trend insights. 
+Keep responses concise, energetic, and fashion-forward. Use occasional emojis. Be supportive and never judgmental. 
+The app is called StyleVerse — "Share your style." If asked to rate a fit, give a score /10 with breakdown.`,
+          messages:[
+            ...history,
+            { role:"user", content:txt }
+          ]
+        })
+      });
+      const data = await res.json();
+      const reply = data.content?.map(c => c.text || "").join("") || "Let me think about that...";
+      setMsgs(p => [...p, { role:"ai", text:reply }]);
+    } catch {
+      setMsgs(p => [...p, { role:"ai", text:"Couldn't connect right now. Try again! 🙏" }]);
+    }
+    setLoading(false);
+  };
+
+  const QUICK = ["Rate my fit 🔥","Budget outfit under ₦10k","What's trending?","Vintage vs Streetwear?"];
+
+  return (
+    <div style={{ height:"100%", display:"flex", flexDirection:"column" }}>
+      <div style={{ padding:"16px 20px", display:"flex", alignItems:"center", gap:12,
+        background:"rgba(13,13,13,.95)", backdropFilter:"blur(10px)",
+        borderBottom:"1px solid #1E1E1E" }}>
+        <button className="sv-btn" onClick={onClose}
+          style={{ background:"#1E1E1E", color:"#F5F5F5", padding:"8px 14px",
+            borderRadius:10, fontSize:13, border:"1px solid #2C2C2C" }}>←</button>
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <span style={{ fontSize:20 }}>🤖</span>
+            <span style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:700 }}>
+              AI Stylist
+            </span>
+          </div>
+          <p style={{ color:"#555", fontSize:11, marginTop:1 }}>Your personal fashion AI</p>
+        </div>
+        <div style={{ width:8, height:8, borderRadius:"50%", background:"#39FF14" }} />
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex:1, overflowY:"auto", padding:"16px 16px 8px",
+        display:"flex", flexDirection:"column", gap:10 }}>
+        {msgs.map((m,i) => (
+          <div key={i} className={`${m.role==="user" ? "sv-msg-me" : "sv-msg-ai"} sv-fade`}
+            style={{ "--aura":auraHex }}>
+            {m.text}
+          </div>
+        ))}
+        {loading && (
+          <div className="sv-msg-ai" style={{ display:"flex", gap:5, alignItems:"center",
+            padding:"12px 16px" }}>
+            <div className="sv-dot" /><div className="sv-dot" /><div className="sv-dot" />
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Quick replies */}
+      {msgs.length <= 1 && (
+        <div style={{ padding:"0 16px 8px", display:"flex", gap:6, overflowX:"auto" }}>
+          {QUICK.map(q => (
+            <button key={q} className="sv-btn" onClick={() => { setInput(q); }}
+              style={{ background:"#1E1E1E", border:`1px solid ${auraHex}44`,
+                color: auraHex, padding:"7px 12px", borderRadius:20,
+                fontSize:11, fontWeight:600, whiteSpace:"nowrap", flexShrink:0 }}>
+              {q}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{ padding:"8px 16px 16px", display:"flex", gap:10,
+        borderTop:"1px solid #1E1E1E" }}>
+        <input className="sv-input" placeholder="Ask about your style..."
+          value={input} onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && send()} />
+        <button className="sv-btn" onClick={send}
+          style={{ background: input.trim() ? auraHex : "#2A2A2A",
+            color: input.trim() ? "#000" : "#555",
+            padding:"0 18px", borderRadius:12, fontSize:18, fontWeight:700,
+            flexShrink:0, height:48 }}>
+          →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── MARKETPLACE ───────────────────────────────────────────────────── */
+function MarketScreen({ auraHex, onClose }) {
+  const [cat, setCat] = useState("All");
+  const cats = ["All","Streetwear","Vintage","Luxury"];
+  const filtered = MARKET.filter(i => cat === "All" || i.tag === cat);
+
+  return (
+    <div style={{ height:"100%", overflowY:"auto", paddingBottom:80 }}>
+      <div style={{ padding:"16px 20px", display:"flex", alignItems:"center", gap:12,
+        position:"sticky", top:0, background:"rgba(13,13,13,.95)",
+        backdropFilter:"blur(10px)", zIndex:10 }}>
+        <button className="sv-btn" onClick={onClose}
+          style={{ background:"#1E1E1E", color:"#F5F5F5", padding:"8px 14px",
+            borderRadius:10, fontSize:13, border:"1px solid #2C2C2C" }}>←</button>
+        <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:700, flex:1 }}>
+          Marketplace 🛍️
+        </h2>
+        <span style={{ fontSize:20, cursor:"pointer" }}>+</span>
+      </div>
+
+      <div style={{ padding:"0 20px 12px" }}>
+        <div style={{ display:"flex", gap:8, overflowX:"auto" }}>
+          {cats.map(c => (
+            <button key={c} className="sv-cat-pill" onClick={() => setCat(c)}
+              style={{ background: cat===c ? auraHex : "#1E1E1E",
+                color: cat===c ? "#000" : "#888",
+                border:`1px solid ${cat===c ? auraHex : "#2C2C2C"}` }}>
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ padding:"0 16px", display:"grid",
+        gridTemplateColumns:"1fr 1fr", gap:12 }}>
+        {filtered.map(item => {
+          const seller = getUser(item.uid);
+          return (
+            <div key={item.id} style={{ background:"#141414", borderRadius:16, overflow:"hidden" }}>
+              <div style={{ height:130, background:"linear-gradient(160deg,#1A1A1A,#2A2A2A)",
+                display:"flex", alignItems:"center", justifyContent:"center", fontSize:52,
+                position:"relative" }}>
+                {item.emoji}
+                <span style={{ position:"absolute", top:8, left:8, background:`${auraHex}22`,
+                  color: auraHex, fontSize:9, fontWeight:700, padding:"3px 7px",
+                  borderRadius:6 }}>{item.tag}</span>
+              </div>
+              <div style={{ padding:"10px 12px" }}>
+                <p style={{ color:"#F5F5F5", fontSize:12, fontWeight:700,
+                  marginBottom:4, lineHeight:1.3 }}>{item.title}</p>
+                <div style={{ display:"flex", justifyContent:"space-between",
+                  alignItems:"center", marginBottom:8 }}>
+                  <span style={{ color: auraHex, fontSize:14, fontWeight:800 }}>{item.price}</span>
+                  <span style={{ color:"#555", fontSize:10 }}>Size {item.size}</span>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between",
+                  alignItems:"center" }}>
+                  <span style={{ color:"#666", fontSize:10 }}>by {seller.username}</span>
+                  <span style={{ background:"#2A2A2A", color:"#888",
+                    fontSize:9, padding:"2px 6px", borderRadius:5 }}>{item.cond}</span>
+                </div>
+              </div>
+              <button className="sv-btn"
+                style={{ width:"100%", background:`${auraHex}11`,
+                  borderTop:`1px solid ${auraHex}22`, color: auraHex,
+                  padding:"10px", fontSize:12, fontWeight:700 }}>
+                Message Seller →
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ─── NOTIFICATIONS ─────────────────────────────────────────────────── */
+function NotificationsScreen({ auraHex, onClose }) {
+  const [notifs, setNotifs] = useState(NOTIFS);
+  const markRead = (id) => setNotifs(p => p.map(n => n.id===id ? {...n,unread:false} : n));
+
+  return (
+    <div style={{ height:"100%", overflowY:"auto", paddingBottom:80 }}>
+      <div style={{ padding:"16px 20px", display:"flex", alignItems:"center", gap:12,
+        position:"sticky", top:0, background:"rgba(13,13,13,.95)",
+        backdropFilter:"blur(10px)", zIndex:10 }}>
+        <button className="sv-btn" onClick={onClose}
+          style={{ background:"#1E1E1E", color:"#F5F5F5", padding:"8px 14px",
+            borderRadius:10, fontSize:13, border:"1px solid #2C2C2C" }}>←</button>
+        <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:700, flex:1 }}>
+          Notifications
+        </h2>
+        <button className="sv-btn" onClick={() => setNotifs(p => p.map(n => ({...n,unread:false})))}
+          style={{ background:"none", color: auraHex, fontSize:11, fontWeight:600 }}>
+          Mark all read
+        </button>
+      </div>
+
+      <div style={{ padding:"0 16px" }}>
+        {notifs.map(n => (
+          <div key={n.id} onClick={() => markRead(n.id)}
+            style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 0",
+              borderBottom:"1px solid #1E1E1E", cursor:"pointer",
+              background: n.unread ? `${auraHex}05` : "transparent",
+              borderRadius:8 }}>
+            <div style={{ width:42, height:42, borderRadius:"50%", background:"#1E1E1E",
+              display:"flex", alignItems:"center", justifyContent:"center", fontSize:20,
+              flexShrink:0 }}>
+              {n.emoji}
+            </div>
+            <div style={{ flex:1 }}>
+              <p style={{ color: n.unread ? "#F5F5F5" : "#888", fontSize:13,
+                fontWeight: n.unread ? 600 : 400, lineHeight:1.45 }}>{n.text}</p>
+              <p style={{ color:"#555", fontSize:11, marginTop:3 }}>{n.sub}</p>
+            </div>
+            {n.unread && <div className="sv-notif-dot" style={{ background: auraHex }} />}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── BOTTOM NAV ────────────────────────────────────────────────────── */
+function BottomNav({ tab, setTab, auraHex }) {
+  const TABS = [
+    { id:"home",       icon:"🏠", label:"Home" },
+    { id:"explore",    icon:"🔍", label:"Explore" },
+    { id:"create",     icon:"➕", label:"Post" },
+    { id:"challenges", icon:"🏆", label:"Battles" },
+    { id:"profile",    icon:"👤", label:"Me" },
+  ];
+  return (
+    <div style={{ position:"fixed", bottom:0, left:"50%", transform:"translateX(-50%)",
+      width:"100%", maxWidth:430, background:"rgba(13,13,13,.97)",
+      backdropFilter:"blur(16px)", borderTop:"1px solid #1E1E1E",
+      padding:"10px 0 16px", display:"flex", zIndex:50 }}>
+      {TABS.map(t => (
+        <button key={t.id} className={`sv-btn sv-tab ${tab===t.id?"active":""}`}
+          onClick={() => setTab(t.id)}
+          style={{ flex:1, background:"none", display:"flex", flexDirection:"column",
+            alignItems:"center", gap:3 }}>
+          {t.id === "create" ? (
+            <div style={{ width:44, height:44, borderRadius:"50%",
+              background:`linear-gradient(135deg,${auraHex},${auraHex}99)`,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              boxShadow:`0 4px 14px ${AURA[Object.keys(AURA).find(k=>AURA[k].hex===auraHex)||"gold"].glow}`,
+              fontSize:20, marginTop:-10 }}>
+              ➕
+            </div>
+          ) : (
+            <>
+              <span style={{ fontSize:20 }}>{t.icon}</span>
+              <span style={{ fontSize:9, fontWeight:600, color: tab===t.id ? auraHex : "#555",
+                fontFamily:"Syne" }}>{t.label}</span>
+            </>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─── MAIN APP ──────────────────────────────────────────────────────── */
+export default function StyleVerse() {
+  const [screen, setScreen] = useState("splash");   // splash | onboard | app
+  const [tab, setTab]       = useState("home");
+  const [subScreen, setSub] = useState(null);        // ai | market | notifs
+  const [user, setUser]     = useState(null);
+  const [posts, setPosts]   = useState(INIT_POSTS);
+
+  const auraHex = user ? AURA[user.aura].hex : "#C9A84C";
+
+  // inject CSS var
+  useEffect(() => {
+    document.documentElement.style.setProperty("--aura", auraHex);
+  }, [auraHex]);
+
+  const handleLike = (id) => {
+    setPosts(p => p.map(post => post.id===id
+      ? { ...post, liked:!post.liked, likes: post.liked ? post.likes-1 : post.likes+1 }
+      : post
+    ));
+  };
+  const handleSave = (id) => {
+    setPosts(p => p.map(post => post.id===id ? {...post,saved:!post.saved} : post));
+  };
+  const handleNewPost = (post) => {
+    setPosts(p => [{ ...post, uid: user.id }, ...p]);
+    setUser(u => ({ ...u, posts: u.posts + 1 }));
+  };
+
+  const containerStyle = {
+    width:"100%", maxWidth:430, height:"100vh", margin:"0 auto",
+    background:"#0D0D0D", fontFamily:"'Syne',sans-serif",
+    color:"#F5F5F5", position:"relative", overflow:"hidden",
+    display:"flex", flexDirection:"column"
+  };
+
+  if (screen === "splash") return (
+    <div style={containerStyle}>
+      <SplashScreen onDone={() => setScreen("onboard")} />
+    </div>
+  );
+
+  if (screen === "onboard") return (
+    <div style={containerStyle}>
+      <OnboardingScreen onComplete={u => { setUser(u); setScreen("app"); }} />
+    </div>
+  );
+
+  // Sub-screens (overlay full)
+  if (subScreen === "ai") return (
+    <div style={containerStyle}>
+      <AIScreen auraHex={auraHex} onClose={() => setSub(null)} />
+    </div>
+  );
+  if (subScreen === "market") return (
+    <div style={containerStyle}>
+      <MarketScreen auraHex={auraHex} onClose={() => setSub(null)} />
+    </div>
+  );
+  if (subScreen === "notifs") return (
+    <div style={containerStyle}>
+      <NotificationsScreen auraHex={auraHex} onClose={() => setSub(null)} />
+    </div>
+  );
+
+  // Create post full-screen
+  if (tab === "create") return (
+    <div style={containerStyle}>
+      <CreatePostScreen auraHex={auraHex}
+        onPost={handleNewPost}
+        onClose={() => setTab("home")} />
+    </div>
+  );
+
+  return (
+    <div style={containerStyle}>
+      <div style={{ flex:1, overflow:"hidden", position:"relative" }}>
+        {tab === "home" && (
+          <HomeScreen posts={posts} onLike={handleLike} onSave={handleSave}
+            auraHex={auraHex} user={user} key="home" />
+        )}
+        {tab === "explore" && (
+          <ExploreScreen posts={posts} auraHex={auraHex} onLike={handleLike} key="explore" />
+        )}
+        {tab === "challenges" && (
+          <ChallengesScreen auraHex={auraHex} key="challenges" />
+        )}
+        {tab === "profile" && (
+          <ProfileScreen user={user} posts={posts} auraHex={auraHex}
+            onOpenAI={() => setSub("ai")}
+            onOpenMarket={() => setSub("market")}
+            key="profile" />
+        )}
+      </div>
+      <BottomNav tab={tab} setTab={setTab} auraHex={auraHex} />
+    </div>
+  );
+}
