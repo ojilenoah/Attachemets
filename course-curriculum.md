@@ -5,8 +5,6 @@
 
 **Owners:** **N** = Noah: Supabase, auth, payments, Resend/WhatsApp, domain and launch (Modules 1, 2, 4, 5, 9). **C** = Co-founder: storefront UI, Capacitor, native features, CI/CD, assessment (Modules 3, 6, 7, 8, 10).
 
-The stack matches the `learnything` repo (Next.js static export + Capacitor + Supabase + GitHub Actions APK build), so its setup and `android-release.yml` can be reused.
-
 | # | Module | What gets built | Owner | End state |
 |---|--------|-----------------|:-----:|-----------|
 | 1 | Setup, Supabase & Keeping Secrets Safe | Repo, Next.js app with `output: "export"`, Supabase project, tables (`stores`, `products`, `orders`, `order_items`), Row Level Security, `.env.local` and Vercel env vars, buy domain and verify it with Resend, set up Claude safely with SQL migrations and a dev project | N | Empty app talking to the DB, secured, domain and email ready, no secrets in the repo |
@@ -44,7 +42,7 @@ The stack matches the `learnything` repo (Next.js static export + Capacitor + Su
 
 ## Decisions and risks to settle before recording
 
-- **Web framework:** Next.js with `output: "export"`, as in `learnything`. No server-rendered pages: use client-side routing for stores and products, and put webhooks (Paystack) in Supabase Edge Functions.
+- **Web framework:** Next.js with `output: "export"`. No server-rendered pages: use client-side routing for stores and products, and put webhooks (Paystack) in Supabase Edge Functions.
 - **WhatsApp API:** Meta's Cloud API needs a business account, verification and approved message templates. This can take days or weeks. Start now, and decide on a fallback (SMS or email OTP) if approval stalls.
 - **Resend free tier:** your notes say about 300 emails/month. I believe Resend's free plan is higher (about 3,000/month, 100/day). Please check their current pricing page.
 - **"No Android SDK needed":** you still need Android build tools to produce an APK. GitHub Actions can do the build for students (Module 8), but Module 6 needs Android Studio or the SDK locally.
