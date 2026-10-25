@@ -18,17 +18,6 @@
 | 9 | Vercel Production Launch | Attach the domain to Vercel, production env vars, switch Paystack to live, Supabase prod settings | N | Live on the real domain |
 | 10 | Onboarding Assessment & Go-Live | Students sign up on the live app and complete the assessment; Terms and Privacy published | C | Students onboarded on the MVP |
 
-## Holes in the Gemini version (and how this fixes them)
-
-1. **Sellers were never built.** The product is about sellers opening stores, but Gemini only covered the buyer side. Module 2 now covers seller sign-up, store creation and product listing.
-2. **Auth was missing.** "Guest checkout, login at the end" needs auth built first. It's in Module 2 and used in Module 3.
-3. **Split didn't match your plan.** Gemini used four tracks (Backend, Web, Mobile, DevOps) with 4 backend modules. It's now 5 and 5: Noah owns Supabase/backend and the domain, the co-founder owns frontend, mobile and CI.
-4. **No place for Supabase security or webhooks.** Row Level Security and Edge Functions (needed to verify Paystack payments safely) are now in Modules 1 and 4. Without them, anyone could mark an order as paid.
-5. **Order was wrong.** Push notifications (old Module 5) came before Capacitor (old Module 7), but push only works in the native app. It's now Module 7.
-6. **No orders or seller view.** A seller needs to see what was bought. It's in Module 4.
-7. **Go-live was thin.** Switching Paystack to live and the student assessment plus Terms/Privacy step had no home. They're now Modules 9 and 10.
-8. **Merged thin modules.** Old Modules 5 and 6 (WhatsApp, Resend) became one, and iOS merged into native features. That freed slots for seller flow and orders.
-
 ## Key handling rules (taught in Module 1)
 
 - **Assume the app bundle is public.** Anything with a `NEXT_PUBLIC_` prefix is bundled into the website and the APK. Encryption can't hide it, because the app must hold the decryption key.
